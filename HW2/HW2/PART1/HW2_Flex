@@ -1,0 +1,139 @@
+%{ 
+
+	int quoteMarkCount = 0;
+
+%}  
+
+%% 
+[Aa][Nn][Dd] {return 0;}
+[Oo][Rr] {return 1;}
+[Nn][Oo][Tt] {return 2;}
+[Ee][Qq][Uu][Aa][Ll] {return 3;}
+[Ll][Ee][Ss][Ss] {return 4;}
+[Nn][Ii][Ll] {return 5;}
+[Ll][Ii][Ss][Tt] {return 6;}
+[Aa][Pp][Pp][Ee][Nn][Dd] {return 7;}
+[Cc][Oo][Nn][Cc][Aa][Tt] {return 8;}
+[Ss][Ee][Tt] {return 9;}
+[Dd][Ee][Ff][Ff][Uu][Nn] {return 10;}
+[Ff][Oo][Rr] {return 11;}
+[Ii][Ff] {return 12;}
+[Ee][Xx][Ii][Tt] {return 13;}
+[Ll][Oo][Aa][Dd] {return 14;}
+[Dd][Ii][Ss][Pp] {return 15;}
+[Tt][Rr][Uu][Ee] {return 16;}
+[Ff][Aa][Ll][Ss][Ee] {return 17;}
+
+[+] {return 18;}
+[-] {return 19;}
+[/] {return 20;}
+[*] {return 21;}
+[(] { return 22;} 
+[)] { return 23;}
+[*][*] {return 24;}
+["] {	if(quoteMarkCount % 2 == 0){
+            quoteMarkCount++;
+			return 25;	
+		}
+		else{
+            quoteMarkCount++;
+			return 26;
+		}  
+	}
+[,] {return 27;}
+
+[;][;][.]* {return 28;}
+[0]|[-]?[1-9][0-9]* {return 29;}
+[0-9]+[Ff][1-9]+ {return 30;}
+[A-Za-z_][a-zA-Z0-9_]* {return 31;}
+[ \t]+   {return 32;} 
+[\n]	   {return 33;}
+<<EOF>>		{return 34;}
+
+[0-9]+[A-Za-z_]+ {return 35;}
+[0][0-9]+ {return 36;}
+. {return 37;}
+
+%% 
+
+void LexerFlex(){
+	char* nameOfTokens[38] = {
+		"KW_AND","KW_OR","KW_NOT","KW_EQUAL","KW_LESS","KW_NIL","KW_LIST", 
+        "KW_APPEND","KW_CONCAT","KW_SET","KW_DEFFUN","KW_FOR","KW_IF", 
+        "KW_EXIT","KW_LOAD","KW_DISP","KW_TRUE","KW_FALSE",
+        "OP_PLUS","OP_MINUS","OP_DIV","OP_MULT","OP_OP","OP_CP","OP_DBLMULT","OP_OC","OP_CC","OP_COMMA",
+		"COMMENT","VALUEI","VALUEF","IDENTIFIER","Space","Newline","EOF","ERROR1" ,"ERROR2", "ERROR3"}; 
+
+	int returnNumber;
+	do{
+		returnNumber = yylex();
+		if(returnNumber<= 31){
+			printf("%s : %s\n",yytext,nameOfTokens[returnNumber]);	
+			if(returnNumber == 28){
+				while(returnNumber != 33 && returnNumber != 34){
+					returnNumber = yylex();
+				}
+			}
+		}
+		else if(returnNumber == 35){
+			printf("LEXICAL ERROR %s : The error of coexisting letters with numbers\n",yytext);
+            return;
+		}
+        else if(returnNumber == 36)
+        {
+            printf("LEXICAL ERROR %s : The error of starting the number with zero\n",yytext);
+            return;
+        }
+        else if(returnNumber == 37)
+        {
+            printf("LEXICAL ERROR %s : Cannot be tokenized\n",yytext);
+        }
+	}
+	while(returnNumber >= 0 && returnNumber <= 33);
+}
+
+int yywrap(){} 
+void openFile(int argc, char *argv[]);
+void REPL();
+
+int main(int argc, char *argv[]){ 
+    
+	openFile(argc, argv);
+
+	return 0; 
+}
+
+void openFile(int argc, char *argv[])
+{
+    if(argc > 2){
+		printf("You entered the wrong input");
+		return;
+	}
+	if(argc == 2){
+		FILE *fp = fopen(argv[1],"r");
+
+		if(fp == NULL){
+			printf("No file found!");
+			return;
+		}
+		yyin = fp;
+		LexerFlex();
+		fclose(fp);
+	}
+	else
+		REPL();
+}
+
+void REPL()
+{
+    char convert[1024];
+    while(1){
+        printf("Enter the input : ");
+        int temp = scanf("%[^\n]", convert);
+        getchar();
+        if(temp == 0)
+            return;
+        yy_scan_string(convert);
+        LexerFlex();
+    }
+}

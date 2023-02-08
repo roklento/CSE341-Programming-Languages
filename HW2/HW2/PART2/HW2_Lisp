@@ -1,0 +1,151 @@
+(defun RUN()
+		
+		(if (equal (car *args*) nil) 
+			(processor)
+			(processor (car *args*))
+		)
+	
+)
+(setq TokenOfLast nil)
+(setq checkMultOperator 0)
+(setq quoteMarkCount 0)
+(setq operator (list "+" "-" "/" "*" "(" ")" "**" "\"" ","))
+(setq keyword (list "and" "or" "not" "equal" "less" "nil" "list"
+	"append" "concat" "set" "deffun" "for" "if" "exit" "load" "disp" "true" "false"))
+	
+(defun processor(&rest MyTextFile)
+		(if (equal MyTextFile nil) (ReadAndWrite T) (myFile MyTextFile T))
+)
+(defun myFile(MyTextFile result)
+	
+	(with-open-file (stream (car MyTextFile))
+	    (let ((contents (make-string (file-length stream))))
+	      (read-sequence contents stream)
+	      contents
+	      	(setq TokenOfLast nil)
+	    	(SeperateFunc contents result)
+	    )
+    )
+)
+
+(defun ReadAndWrite(result)
+		(setq myString nil)
+		(loop while(not (equal myString ""))
+			do  (format t "Enter an Input : ")
+				(setq myString (read-line))
+				(setq CommentCheck (search ";;" myString))
+				(if (not (equal CommentCheck nil)) (setf myString (subseq myString 0 (+ CommentCheck 2))))
+	      		(setq TokenOfLast nil)
+				(SeperateFunc myString result)
+		)
+)
+(defun SeperateFunc(words result)
+	(let ((stringArr (make-array 2 :element-type 'character :adjustable t :fill-pointer 0)) (comment 0))
+		(loop for temp across words
+			do
+			(if (and (equal temp #\Newline) (equal comment 1)) (setq comment 0))
+			(if (and (not (equal temp #\Space)) (not (equal temp #\Newline)) (not (equal temp #\tab)) (not (equal (commentCheckFunc stringArr) 1)))  
+				(if (equal comment 0) (vector-push-extend temp stringArr)) 
+				(if (equal comment 0)
+					(progn 
+					(if (equal (commentCheckFunc stringArr) 1) (progn (if (> (length stringArr) 2) (LexerLips (subseq stringArr 0 (- (length stringArr) 2)) result)) (format result "('~A') ('COMMENT')~%" stringArr) (progn (setq comment 1) (setq (fill-pointer stringArr) 0))))
+					(progn (if (> (length stringArr) 0) (progn (LexerLips stringArr result) (setf (fill-pointer stringArr) 0)))) 
+				))
+			)
+		)
+		
+		(if (equal comment 0) 
+			(progn 
+			(if (equal (commentCheckFunc stringArr) 1) (progn (if (> (length stringArr) 2) (LexerLips (subseq stringArr 0 (- (length stringArr) 2)) result)) (format result "('~A') ('COMMENT')~%" stringArr) (return-from SeperateFunc 1)))
+			(if (> (length stringArr) 0) (progn (LexerLips stringArr result) (setf (fill-pointer stringArr) 0)))
+		))
+	)
+)
+
+(defun LexerLips(LexerOfWord result)
+	(setf LexerOfWord (string-downcase LexerOfWord))
+	(let ((x 0) (myArray (make-array 2 :element-type 'character :adjustable t :fill-pointer 0)))
+		(loop for temp across LexerOfWord
+			do 
+			(if (equal 1 (CheckList temp operator)) 
+				(progn
+					(if (> (length myArray) 0) (keywordName myArray result))
+					(setf (fill-pointer myArray) 0)
+					(if (equal temp #\*) 
+						(if (and (< x (- (length LexerOfWord) 1)) (equal (char LexerOfWord (+ x 1)) #\*)) (operatorCheck (string temp) #\* result) (operatorCheck (string temp) nil result)) 	
+						(operatorCheck (string temp) nil result))
+				)
+				(if (or (and (< (char-code temp) 58) (> (char-code temp) 47)) (and (< (char-code temp) 123) (> (char-code temp) 96)) (equal (char-code temp) 95))
+					(vector-push-extend temp myArray)
+					(progn
+						(if (> (length myArray) 0) 
+							(progn (keywordName myArray result) (setf (fill-pointer myArray) 0))
+						)
+						(errorCheck temp result)
+					)
+				)
+			)
+			(incf x)
+		)
+		(if (> (length myArray) 0) (keywordName myArray result))
+	)
+)
+(defun keywordName(string result)
+	(if (keywordCheck string) 
+		(format result "('~A') ('KW_~A')~%" string (string-upcase string))
+		(progn 
+			(let ((val 0))
+				(loop for temp across string
+					do
+					(if (not (digit-char-p temp)) (setq val 1))	
+				)
+				(if (equal val 1) (progn (if (digit-char-p (char string 0)) (format result "LEXICAL ERROR ('~A') : The error of coexisting letters with numbers~%" string) (format result "('~A') ('IDENTIFIER')~%" string)) ) (progn (if (and (> (length string) 1) (equal (char string 0) #\0))(format result "LEXICAL ERROR ('~A') : The error of starting the number with zero~%" string) (format result "('~A') ('VALUEI')~%" string)) ) )	
+			)
+		)
+	)
+)
+
+(defun CheckList(elm my-list)
+	(dolist (l my-list)
+		(if (equal (string elm) l) (return-from CheckList 1))
+	)
+	0
+)
+(defun keywordCheck (elm)
+	(dolist (l keyword)
+		(if (equal elm l) (return-from keywordCheck t))
+	)
+	(not t)
+)
+(defun operatorCheck(temp next result)
+	(if (equal next #\*) (progn (format result "('**') ('OP_DBLMULT') ~%") (incf checkMultOperator) (return-from operatorCheck 1)))
+
+	(cond
+		((equal temp "(") (format result "('(') ('OP_OP') ~%" ))
+        ((equal temp ")") (format result "(')') ('OP_CP') ~%" ))
+        ((equal temp "/") (format result "('/') ('OP_DIV')~%" ))
+        ((equal temp "*") (if (equal checkMultOperator 1) (decf checkMultOperator) (format result "('*') ('OP_MULT')~%" )))		
+		((equal temp "+") (format result "('+') ('OP_PLUS')~%" ))
+        ((equal temp "-") (format result "('-') ('OP_MINUS')~%" ))
+
+
+        ((equal temp "\"") (if (equal (mod quoteMarkCount 2) 0) (progn (format result "~A~%" "OP_OC") (incf quoteMarkCount)) (progn (format result "~A~%" "OP_CC") (incf quoteMarkCount)))) 
+        ((equal temp ",") (format result "(',') ('OP_COMMA') ~%"))
+        (t (format result "~A~%" "ERROR")))
+)
+
+(defun commentCheckFunc (arrayOfComment)
+	(if (and (> (length arrayOfComment) 1) (equal (char arrayOfComment (- (length arrayOfComment) 1)) #\;) (equal (char arrayOfComment (- (length arrayOfComment) 2)) #\;)) (return-from commentCheckFunc 1) (return-from commentCheckFunc 0))
+)
+(defun errorCheck(temp result)
+	(format result "LEXICAL ERROR ('~A'): Cannot be tokenized~%" temp)
+)
+
+
+
+
+
+
+
+
+(RUN)
